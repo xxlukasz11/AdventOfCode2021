@@ -34,15 +34,17 @@ void partOne(const DataType& data) {
 }
 
 void partTwo(const DataType& data) {
-	DataType windowData;
-	windowData.reserve(data.size());
 	int dataSize = data.size();
-	for (int i = 0; i < dataSize; ++i) {
-		windowData.push_back(data[i]);
-		if (i < dataSize - 1 && i - 1 >= 0) {
+	DataType windowData;
+	windowData.assign(dataSize + 2, 0);
+	for (int i = 0; i < dataSize + 2; ++i) {
+		if (i < dataSize && i >= 0) {
+			windowData[i] += data[i];
+		}
+		if (i - 1 < dataSize && i - 1 >= 0) {
 			windowData[i] += data[i - 1];
 		}
-		if (i < dataSize - 2 && i - 2 >= 0) {
+		if (i - 2 < dataSize && i - 2 >= 0) {
 			windowData[i] += data[i - 2];
 		}
 	}
