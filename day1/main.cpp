@@ -17,7 +17,7 @@ DataType read() {
 
 int countIncreased(const DataType& data) {
 	int increased = 0;
-	auto current = data.begin()++;
+	auto current = ++data.begin();
 	auto end = data.end();
 	while (current != end) {
 		if (*std::prev(current) < *current) {
