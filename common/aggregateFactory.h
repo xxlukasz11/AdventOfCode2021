@@ -11,6 +11,7 @@ private:
 	using StreamType = std::istringstream;
 
 public:
+	// Creates Aggregate from given line. Template arguments are fields of the aggregate
 	template<typename... Args>
 	AggregateType create(const std::string& line);
 

@@ -1,4 +1,5 @@
 #include "../common/fileReader.h"
+#include "../common/utils.h"
 #include <iostream>
 #include <vector>
 #include <string>
@@ -8,8 +9,6 @@
 struct Field {
 	int val;
 	bool set = false;
-
-	Field(int arg) : val(arg) {}
 };
 
 struct Board {
@@ -29,13 +28,7 @@ DataType read() {
 	DataType data;
 
 	std::string numbers = reader.nextLine();
-	std::istringstream ss(numbers);
-	for (int val; ss >> val;) {
-		data.numbers.push_back(val);
-		if (ss.peek() == ',') {
-			ss.ignore();
-		}
-	}
+	data.numbers = common::parseArray<int>(numbers, ',');
 
 	int boardId = 1;
 	for (std::string line; reader.nextLine(line);) {
@@ -45,11 +38,7 @@ DataType read() {
 			continue;
 		}
 
-		std::istringstream str(line);
-		std::vector<Field> row;
-		for (int val; str >> val;) {
-			row.push_back(val);
-		}
+		std::vector<Field> row = common::parseArray<int, Field>(line);
 		data.boards.back().array.push_back(row);
 	}
 	return data;
