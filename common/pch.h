@@ -9,5 +9,8 @@
 
 // add headers that you want to pre-compile here
 #include "framework.h"
+#include "aggregateFactory.h"
+#include "fileReader.h"
+#include "utils.h"
 
 #endif //PCH_H
