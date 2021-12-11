@@ -53,33 +53,9 @@ void flash(DataType& data, int r, int c, int& flashCounter) {
 	energy = 0;
 	++flashCounter;
 
-	const int rows = data.size();
-	const int cols = data[0].size();
-	if (r - 1 >= 0) {
-		if (c - 1 >= 0) {
-			neighborFlashed(data, r - 1, c - 1, flashCounter);
-		}
-		if (c + 1 < cols) {
-			neighborFlashed(data, r - 1, c + 1, flashCounter);
-		}
-		neighborFlashed(data, r - 1, c, flashCounter);
-	}
-
-	if (r + 1 < rows) {
-		if (c - 1 >= 0) {
-			neighborFlashed(data, r + 1, c - 1, flashCounter);
-		}
-		if (c + 1 < cols) {
-			neighborFlashed(data, r + 1, c + 1, flashCounter);
-		}
-		neighborFlashed(data, r + 1, c, flashCounter);
-	}
-
-	if (c - 1 >= 0) {
-		neighborFlashed(data, r, c - 1, flashCounter);
-	}
-	if (c + 1 < cols) {
-		neighborFlashed(data, r, c + 1, flashCounter);
+	auto neighbors = common::findNeighbors(data, r, c);
+	for (auto [_, row, col] : neighbors) {
+		neighborFlashed(data, row, col, flashCounter);
 	}
 }
 

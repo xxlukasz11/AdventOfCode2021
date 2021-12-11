@@ -11,6 +11,7 @@
 #include "framework.h"
 #include "aggregateFactory.h"
 #include "fileReader.h"
-#include "utils.h"
+#include "parserUtils.h"
+#include "neighborUtils.h"
 
 #endif //PCH_H
