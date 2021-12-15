@@ -21,19 +21,19 @@ DataType read() {
 	return data;
 }
 
-void partOne(const DataType& data) {
+int partOne(const DataType& data) {
 
-	std::cout << "Part one: " << std::endl;
+	return 0;
 }
 
-void partTwo(const DataType& data) {
+int partTwo(const DataType& data) {
 
-	std::cout << "Part two: " << std::endl;
+	return 0;
 }
 
-int main() {
+int main(int argc, char** argv) {
 	const auto data = read();
-	partOne(data);
-	partTwo(data);
+	common::measureAndPrint("Part 1", partOne, data);
+	common::measureAndPrint("Part 2", partTwo, data);
 	return 0;
 }

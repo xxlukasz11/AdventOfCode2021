@@ -74,12 +74,12 @@ int shortestPath(const DataType& data) {
 	return distances[rows - 1][cols - 1];
 }
 
-void partOne(const DataType& data) {
+int partOne(const DataType& data) {
 	int risk = shortestPath(data);
-	std::cout << "Part one: " << risk << std::endl;
+	return risk;
 }
 
-void partTwo(const DataType& data) {
+int partTwo(const DataType& data) {
 	const int rows = data.size();
 	const int cols = data[0].size();
 	DataType newData(rows * 5, std::vector<int>(cols*5));
@@ -98,12 +98,12 @@ void partTwo(const DataType& data) {
 	}
 	
 	int risk = shortestPath(newData);
-	std::cout << "Part two: " << risk << std::endl;
+	return risk;
 }
 
 int main() {
 	const auto data = read();
-	partOne(data);
-	partTwo(data);
+	common::measureAndPrint("Part 1", partOne, data);
+	common::measureAndPrint("Part 2", partTwo, data);
 	return 0;
 }

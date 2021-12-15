@@ -13,5 +13,6 @@
 #include "fileReader.h"
 #include "parserUtils.h"
 #include "neighborUtils.h"
+#include "benchmark.h"
 
 #endif //PCH_H
