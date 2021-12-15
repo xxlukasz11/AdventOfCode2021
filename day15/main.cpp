@@ -75,7 +75,7 @@ int shortestPath(const DataType& data) {
 }
 
 int partOne(const DataType& data) {
-	int risk = shortestPath(data);
+	const int risk = shortestPath(data);
 	return risk;
 }
 
@@ -83,21 +83,20 @@ int partTwo(const DataType& data) {
 	const int rows = data.size();
 	const int cols = data[0].size();
 	DataType newData(rows * 5, std::vector<int>(cols*5));
-
 	for (int rowInc = 0; rowInc < 5; ++rowInc) {
 		for (int colInc = 0; colInc < 5; ++colInc) {
 			for (int row = 0; row < rows; ++row) {
 				for (int col = 0; col < cols; ++col) {
-					int rowIdx = rows * rowInc + row;
-					int colIdx = cols * colInc + col;
-					int newVal = (data[row][col] + colInc + rowInc) % 9;
+					const int rowIdx = rows * rowInc + row;
+					const int colIdx = cols * colInc + col;
+					const int newVal = (data[row][col] + colInc + rowInc) % 9;
 					newData[rowIdx][colIdx] = newVal == 0 ? 9 : newVal;
 				}
 			}
 		}
 	}
 	
-	int risk = shortestPath(newData);
+	const int risk = shortestPath(newData);
 	return risk;
 }
 
