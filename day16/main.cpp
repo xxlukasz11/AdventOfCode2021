@@ -7,7 +7,7 @@
 #include <utility>
 #include <sstream>
 #include <vector>
-#include <map>
+#include <unordered_map>
 #include <set>
 
 struct Packet {
@@ -39,6 +39,40 @@ DataType read() {
 	return data;
 }
 
+std::string hexToBin(const char hex) {
+	static const std::unordered_map<char, std::string> hexToBinMap{
+		{ '0', "0000" },
+		{ '1', "0001" },
+		{ '2', "0010" },
+		{ '3', "0011" },
+		{ '4', "0100" },
+		{ '5', "0101" },
+		{ '6', "0110" },
+		{ '7', "0111" },
+		{ '8', "1000" },
+		{ '9', "1001" },
+		{ 'A', "1010" },
+		{ 'B', "1011" },
+		{ 'C', "1100" },
+		{ 'D', "1101" },
+		{ 'E', "1110" },
+		{ 'F', "1111" },
+	};
+	return hexToBinMap.find(hex)->second;
+}
+
+std::vector<bool> toBinary(const DataType& data) {
+	std::vector<bool> bits;
+	bits.reserve(data.size() * 4);
+	for (char c : data) {
+		const std::string bin = hexToBin(c);
+		for (const char xx : bin) {
+			bits.push_back(xx == '1');
+		}
+	}
+	return bits;
+}
+
 int64_t parseNumber(const std::vector<bool>& data, const int pos, const int length) {
 	int64_t number = 0;
 	int bitPos = pos;
@@ -51,16 +85,9 @@ int64_t parseNumber(const std::vector<bool>& data, const int pos, const int leng
 	return number;
 }
 
-static int sumV = 0;
-
-std::pair<int, Packet> parseLiteralPacket(const std::vector<bool>& data, const int pos, int version, int typeId, bool isStadalonePacket) {
-	sumV += version;
-	Packet packet;
-	packet.version = version;
-	packet.typeId = typeId;
-
+std::pair<int, Packet> parseLiteralPacketBody(const std::vector<bool>& data, const int initialPos) {
 	int noOfChunks = 0;
-	int tmpPos = pos;
+	int tmpPos = initialPos;
 	while (true) {
 		++noOfChunks;
 		bool isLast = !(data[tmpPos]);
@@ -70,30 +97,22 @@ std::pair<int, Packet> parseLiteralPacket(const std::vector<bool>& data, const i
 		tmpPos += 5;
 	}
 
-	int currentPos = pos;
+	Packet packet;
+	int currentPos = initialPos;
 	for (int chunkIdx = noOfChunks - 1; chunkIdx >= 0; --chunkIdx) {
 		currentPos++;
 		int64_t chunkValue = parseNumber(data, currentPos, 4);
 		packet.value |= (chunkValue << (chunkIdx * 4));
 		currentPos += 4;
 	}
-	if (isStadalonePacket) {
-		int packetLength = currentPos - (pos - 6);
-		int extraBits = packetLength % 4;
-		if (extraBits != 0) {
-			currentPos += (4 - extraBits);
-		}
-	}
 	return { currentPos,  packet };
 }
 
-std::pair<int, Packet> parseOperatorPacket(const std::vector<bool>& data, const int pos, int version, int typeId) {
-	sumV += version;
-	Packet packet;
-	packet.version = version;
-	packet.typeId = typeId;
+std::pair<int, Packet> parsePacket(const std::vector<bool>& bits, const int initialPos);
 
-	int currentPos = pos;
+std::pair<int, Packet> parseOperatorPacketBody(const std::vector<bool>& data, const int initialPos) {
+	Packet packet;
+	int currentPos = initialPos;
 	packet.lengthType = parseNumber(data, currentPos++, 1);
 	if (packet.lengthType == 0) {
 		packet.lengthBits = parseNumber(data, currentPos, 15);
@@ -101,86 +120,50 @@ std::pair<int, Packet> parseOperatorPacket(const std::vector<bool>& data, const 
 
 		int expectedEnd = currentPos + packet.lengthBits;
 		while (currentPos < expectedEnd) {
-			int localVersion = parseNumber(data, currentPos, 3);
-			currentPos += 3;
-			int localTypeId = parseNumber(data, currentPos, 3);
-			currentPos += 3;
-
-			if (localTypeId == 4) {
-				auto [nextBit, literal] = parseLiteralPacket(data, currentPos, localVersion, localTypeId, false);
-				packet.subPackets.push_back(literal);
-				currentPos = nextBit;
-			} else {
-				auto [nextBit, oper] = parseOperatorPacket(data, currentPos, localVersion, localTypeId);
-				packet.subPackets.push_back(oper);
-				currentPos = nextBit;
-			}
+			auto [nextBit, subPacket] = parsePacket(data, currentPos);
+			packet.subPackets.push_back(subPacket);
+			currentPos = nextBit;
 		}
 
-	} else {
+	}
+	else {
 		packet.lengthPackets = parseNumber(data, currentPos, 11);
 		currentPos += 11;
 
 		for (int i = 0; i < packet.lengthPackets; ++i) {
-			int localVersion = parseNumber(data, currentPos, 3);
-			currentPos += 3;
-			int localTypeId = parseNumber(data, currentPos, 3);
-			currentPos += 3;
-
-			if (localTypeId == 4) {
-				auto [nextBit, literal] = parseLiteralPacket(data, currentPos, localVersion, localTypeId, false);
-				packet.subPackets.push_back(literal);
-				currentPos = nextBit;
-			} else {
-				auto [nextBit, oper] = parseOperatorPacket(data, currentPos, localVersion, localTypeId);
-				packet.subPackets.push_back(oper);
-				currentPos = nextBit;
-			}
+			auto [nextBit, subPacket] = parsePacket(data, currentPos);
+			packet.subPackets.push_back(subPacket);
+			currentPos = nextBit;
 		}
 	}
-	return {currentPos, packet };
+	return { currentPos, packet };
 }
 
-std::string hexToBin(char c) {
-	switch (c) {
-		case '0': return "0000";
-		case '1': return "0001";
-		case '2': return "0010";
-		case '3': return "0011";
-		case '4': return "0100";
-		case '5': return "0101";
-		case '6': return "0110";
-		case '7': return "0111";
-		case '8': return "1000";
-		case '9': return "1001";
-		case 'A': return "1010";
-		case 'B': return "1011";
-		case 'C': return "1100";
-		case 'D': return "1101";
-		case 'E': return "1110";
-		case 'F': return "1111";
-		default: throw "So bad";
-	}
-}
+static int sumV = 0;
 
-std::vector<bool> toBinary(const DataType& data) {
-	std::vector<bool> bits;
-	for (char c : data) {
-		std::string bin = hexToBin(c);
-		for (char xx : bin) {
-			bits.push_back(xx == '1');
-		}
-	}
-	return bits;
-}
-
-Packet decodeOutermostPacket(const std::vector<bool>& bits) {
-	int currentPos = 0;
+std::pair<int, Packet> parsePacket(const std::vector<bool>& bits, const int initialPos) {
+	int currentPos = initialPos;
 	int version = parseNumber(bits, currentPos, 3);
+	sumV += version;
 	currentPos += 3;
 	int typeId = parseNumber(bits, currentPos, 3);
 	currentPos += 3;
-	return parseOperatorPacket(bits, currentPos, version, typeId).second;
+	if (typeId == 4) {
+		auto [nextBit, packet] = parseLiteralPacketBody(bits, currentPos);
+		packet.version = version;
+		packet.typeId = typeId;
+		return { nextBit, packet };
+	}
+	else {
+		auto [nextBit, packet] = parseOperatorPacketBody(bits, currentPos);
+		packet.version = version;
+		packet.typeId = typeId;
+		return { nextBit, packet };
+	}
+}
+
+Packet decodeOutermostPacket(const std::vector<bool>& bits) {
+	return parsePacket(bits, 0).second;
 }
 
 int partOne(const DataType& data) {
@@ -197,7 +180,7 @@ int64_t mul(const std::vector<int64_t>& values) {
 	return result;
 }
 
-int64_t calculateValue(const Packet& packet) {
+int64_t calculatePacketValue(const Packet& packet) {
 	if (packet.isLiteral()) {
 		return packet.value;
 	}
@@ -205,7 +188,7 @@ int64_t calculateValue(const Packet& packet) {
 	std::vector<int64_t> values;
 	const auto& subPackets = packet.subPackets;
 	for (const auto& subPacket : subPackets) {
-		int64_t value = calculateValue(subPacket);
+		int64_t value = calculatePacketValue(subPacket);
 		values.push_back(value);
 	}
 
@@ -227,8 +210,7 @@ int64_t calculateValue(const Packet& packet) {
 int64_t partTwo(const DataType& data) {
 	std::vector<bool> bits = toBinary(data);
 	const auto outermostPacket = decodeOutermostPacket(bits);
-
-	int64_t result = calculateValue(outermostPacket);
+	int64_t result = calculatePacketValue(outermostPacket);
 	return result;
 }
 
