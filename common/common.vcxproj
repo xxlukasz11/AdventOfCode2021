@@ -157,14 +157,17 @@
   <ItemGroup>
     <ClInclude Include="aggregateFactory.h" />
     <ClInclude Include="benchmark.h" />
+    <ClInclude Include="conversions.h" />
     <ClInclude Include="neighborUtils.h" />
     <ClInclude Include="fileReader.h" />
     <ClInclude Include="framework.h" />
     <ClInclude Include="pch.h" />
     <ClInclude Include="parserUtils.h" />
+    <ClInclude Include="traits.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="common.cpp" />
+    <ClCompile Include="conversions.cpp" />
     <ClCompile Include="fileReader.cpp" />
     <ClCompile Include="neighborUtils.cpp" />
     <ClCompile Include="pch.cpp">

@@ -14,5 +14,6 @@
 #include "parserUtils.h"
 #include "neighborUtils.h"
 #include "benchmark.h"
+#include "conversions.h"
 
 #endif //PCH_H

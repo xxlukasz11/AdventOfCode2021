@@ -39,40 +39,6 @@ DataType read() {
 	return data;
 }
 
-std::string hexToBin(const char hex) {
-	static const std::unordered_map<char, std::string> hexToBinMap{
-		{ '0', "0000" },
-		{ '1', "0001" },
-		{ '2', "0010" },
-		{ '3', "0011" },
-		{ '4', "0100" },
-		{ '5', "0101" },
-		{ '6', "0110" },
-		{ '7', "0111" },
-		{ '8', "1000" },
-		{ '9', "1001" },
-		{ 'A', "1010" },
-		{ 'B', "1011" },
-		{ 'C', "1100" },
-		{ 'D', "1101" },
-		{ 'E', "1110" },
-		{ 'F', "1111" },
-	};
-	return hexToBinMap.find(hex)->second;
-}
-
-std::vector<bool> toBinary(const DataType& data) {
-	std::vector<bool> bits;
-	bits.reserve(data.size() * 4);
-	for (char c : data) {
-		const std::string bin = hexToBin(c);
-		for (const char xx : bin) {
-			bits.push_back(xx == '1');
-		}
-	}
-	return bits;
-}
-
 int64_t parseNumber(const std::vector<bool>& data, const int pos, const int length) {
 	int64_t number = 0;
 	int bitPos = pos;
@@ -167,7 +133,7 @@ Packet decodeOutermostPacket(const std::vector<bool>& bits) {
 }
 
 int partOne(const DataType& data) {
-	std::vector<bool> bits = toBinary(data);
+	std::vector<bool> bits = common::hexToBinArray(data);
 	decodeOutermostPacket(bits);
 	return sumV;
 }
@@ -208,7 +174,7 @@ int64_t calculatePacketValue(const Packet& packet) {
 }
 
 int64_t partTwo(const DataType& data) {
-	std::vector<bool> bits = toBinary(data);
+	std::vector<bool> bits = common::hexToBinArray(data);
 	const auto outermostPacket = decodeOutermostPacket(bits);
 	int64_t result = calculatePacketValue(outermostPacket);
 	return result;

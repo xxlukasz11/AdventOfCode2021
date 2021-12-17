@@ -3,6 +3,7 @@
 #include <string>
 #include <vector>
 #include <sstream>
+#include <algorithm>
 
 namespace common {
 
@@ -61,6 +62,18 @@ std::vector<Wrapper> parseArray(const std::string& str, char delimiter) {
 			stream.ignore();
 		}
 	}
+	return data;
+}
+
+/*
+Parses contiguous string of digits
+*/
+template<typename T>
+std::vector<T> parseDigits(const std::string& str) {
+	std::vector<T> data;
+	std::transform(str.begin(), str.end(), std::back_inserter(data), [](const char value) {
+		return value - '0';
+	});
 	return data;
 }
 
