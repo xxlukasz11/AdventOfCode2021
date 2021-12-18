@@ -2,10 +2,10 @@
 #include <iostream>
 #include <cstdint>
 #include <string>
-#include <algorithm>
 #include <vector>
 
 using Number = common::BinaryNode<int64_t>;
+using DataType = std::vector<std::shared_ptr<Number>>;
 
 std::shared_ptr<Number> parseNumber(const std::string& line) {
 	if (line.size() == 1) {
@@ -35,7 +35,6 @@ std::shared_ptr<Number> parseNumber(const std::string& line) {
 	return std::make_shared<Number>(left, right);
 }
 
-using DataType = std::vector<std::shared_ptr<Number>>;
 DataType read() {
 	common::FileReader reader("input.txt");
 	DataType data;
