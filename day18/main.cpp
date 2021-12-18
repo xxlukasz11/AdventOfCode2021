@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <string>
 #include <vector>
+#include <future>
 
 using Number = common::BinaryNode<int64_t>;
 using DataType = std::vector<std::shared_ptr<Number>>;
@@ -161,17 +162,24 @@ int64_t partOne(const DataType& data) {
 	return left->reduceLeafs<int64_t>(magnitude);
 }
 
-int64_t partTwo(const DataType& data) {
+int64_t findLargestMagnitude(const DataType& data, const DataType::const_iterator begin, const DataType::const_iterator end) {
 	int64_t largestMagnitude = 0;
 	for (const auto& left : data) {
-		for (const auto& right : data) {
-			auto magnitude = addAndCalculateMagnitude(*left, *right);
+		for (auto right = begin; right != end; ++right) {
+			auto magnitude = addAndCalculateMagnitude(*left, **right);
 			if (magnitude > largestMagnitude) {
 				largestMagnitude = magnitude;
 			}
 		}
 	}
 	return largestMagnitude;
+}
+
+int64_t partTwo(const DataType& data) {
+	auto middle = std::next(data.begin(), data.size() / 2);
+	auto largestMagnitude1 = std::async(std::launch::async, findLargestMagnitude, data, data.begin(), middle);
+	auto largestMagnitude2 = findLargestMagnitude(data, middle, data.end());
+	return std::max(largestMagnitude1.get(), largestMagnitude2);
 }
 
 int main(int argc, char** argv) {
