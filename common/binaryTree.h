@@ -8,41 +8,45 @@ namespace common {
 template<typename ValueT>
 class BinaryNode {
 
+	enum class NodeType {
+		LEFT,
+		RIGHT,
+		ROOT
+	};
+
 	ValueT value_{};
 	std::shared_ptr<BinaryNode> left_;
 	std::shared_ptr<BinaryNode> right_;
 	BinaryNode* parent_{ nullptr };
-	bool isLeaf_{ true };
+	NodeType type_{ NodeType::ROOT };
 
 public:
-	explicit BinaryNode(const ValueT& value) : value_(value), isLeaf_(true) {}
+	explicit BinaryNode(const ValueT& value) : value_(value) {}
 
 	explicit BinaryNode(const std::shared_ptr<BinaryNode>& left, const std::shared_ptr<BinaryNode>& right) :
-			left_(left), right_(right), isLeaf_(false) {
+			left_(left), right_(right) {
 		left_->parent_ = this;
 		right_->parent_ = this;
+		left_->type_ = NodeType::LEFT;
+		right_->type_ = NodeType::RIGHT;
 	}
 
 	explicit BinaryNode(const BinaryNode& node) {
-		if (node.isLeaf()) {
-			value_ = node.value_;
-			isLeaf_ = true;
+		value_ = node.value_;
+		if (node.hasLeft()) {
+			setLeft(std::make_shared<BinaryNode>(*node.left_));
 		}
-		else {
-			left_ = std::make_shared<BinaryNode>(*node.left_);
-			right_ = std::make_shared<BinaryNode>(*node.right_);
-			left_->parent_ = this;
-			right_->parent_ = this;
-			isLeaf_ = false;
+		if (node.hasRight()) {
+			setRight(std::make_shared<BinaryNode>(*node.right_));
 		}
 	}
 
 	bool isLeaf() const {
-		return isLeaf_;
+		return !hasLeft() && !hasRight();
 	}
 
 	bool hasParent() const {
-		return parent_ != nullptr;
+		return type_ != NodeType::ROOT;
 	}
 
 	bool hasLeft() const {
@@ -60,13 +64,13 @@ public:
 	void setLeft(const std::shared_ptr<BinaryNode>& left) {
 		left_ = left;
 		left_->parent_ = this;
-		isLeaf_ = false;
+		left_->type_ = NodeType::LEFT;
 	}
 
 	void setRight(const std::shared_ptr<BinaryNode>& right) {
 		right_ = right;
 		right_->parent_ = this;
-		isLeaf_ = false;
+		right_->type_ = NodeType::RIGHT;
 	}
 
 	BinaryNode& parent() {
@@ -104,7 +108,6 @@ public:
 	void removeChildren() {
 		left_.reset();
 		right_.reset();
-		isLeaf_ = true;
 	}
 
 	std::shared_ptr<BinaryNode> clone() const {
@@ -146,7 +149,7 @@ public:
 		if (!hasParent()) {
 			return;
 		}
-		if (parent_->hasRight() && parent_->right_.get() == this) {
+		if (type_ == NodeType::RIGHT) {
 			parent_->transformLeftmostLeafRightBranch(func);
 		}
 		else {
@@ -158,7 +161,7 @@ public:
 		if (!hasParent()) {
 			return;
 		}
-		if (parent_->hasLeft() && parent_->left_.get() == this) {
+		if (type_ == NodeType::LEFT) {
 			parent_->transformRightmostLeafLeftBranch(func);
 		}
 		else {
@@ -169,20 +172,16 @@ public:
 	std::shared_ptr<BinaryNode> detachLeft() {
 		auto detached = left_;
 		left_.reset();
-		if (!hasRight()) {
-			isLeaf_ = true;
-		}
 		detached->parent_ = nullptr;
+		detached->type_ = NodeType::ROOT;
 		return detached;
 	}
 
 	std::shared_ptr<BinaryNode> detachRight() {
 		auto detached = right_;
 		right_.reset();
-		if (!hasLeft()) {
-			isLeaf_ = true;
-		}
 		detached->parent_ = nullptr;
+		detached->type_ = NodeType::ROOT;
 		return detached;
 	}
 
@@ -211,7 +210,6 @@ public:
 			return braceLeft + left_->toString(braceLeft, braceRight) + braceRight;
 		}
 		return braceLeft + right_->toString(braceLeft, braceRight) + braceRight;
-		
 	}
 
 };
