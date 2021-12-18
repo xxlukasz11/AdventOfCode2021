@@ -5,151 +5,7 @@
 #include <algorithm>
 #include <vector>
 
-class Number {
-	std::optional<int64_t> value_;
-	std::shared_ptr<Number> left_;
-	std::shared_ptr<Number> right_;
-	Number* parent_{ nullptr };
-
-public:
-	explicit Number(int64_t value) : value_(value) {}
-
-	explicit Number(const std::shared_ptr<Number>& left, const std::shared_ptr<Number>& right) :
-		left_(left), right_(right) {
-		left_->parent_ = this;
-		right_->parent_ = this;
-	}
-
-	explicit Number(const Number& number) {
-		if (number.isValue()) {
-			value_ = number.value_.value();
-		}
-		else {
-			left_ = std::make_shared<Number>(*number.left_);
-			right_ = std::make_shared<Number>(*number.right_);
-			left_->parent_ = this;
-			right_->parent_ = this;
-		}
-	}
-
-	bool hasParent() const {
-		return parent_ != nullptr;
-	}
-
-	Number* parent() const {
-		return parent_;
-	}
-
-	void setValue(int64_t value) {
-		value_ = value;
-		left_.reset();
-		right_.reset();
-	}
-
-	void setLeft(std::shared_ptr<Number> left) {
-		left_ = left;
-		left_->parent_ = this;
-	}
-
-	void setRight(std::shared_ptr<Number> right) {
-		right_ = right;
-		right_->parent_ = this;
-	}
-
-	Number& left() {
-		return *left_;
-	}
-
-	const Number& left() const {
-		return *left_;
-	}
-
-	Number& right() {
-		return *right_;
-	}
-
-	const Number& right() const {
-		return *right_;
-	}
-
-	int64_t value() const {
-		return value_.value();
-	}
-
-	bool isValue() const {
-		return value_.has_value();
-	}
-
-	int64_t magnitude() const {
-		if (value_.has_value()) {
-			return value_.value();
-		}
-		return 3*left_->magnitude() + 2*right_->magnitude();
-	}
-
-	std::shared_ptr<Number> clone() const {
-		if (value_.has_value()) {
-			return std::make_shared<Number>(value_.value());
-		}
-		else {
-			auto newLeft = std::make_shared<Number>(*left_);
-			auto newRight = std::make_shared<Number>(*right_);
-			return std::make_shared<Number>(newLeft, newRight);
-		}
-	}
-
-	void addLeft(int64_t val) {
-		if (value_.has_value()) {
-			value_.value() += val;
-		}
-		else {
-			left_->addLeft(val);
-		}
-	}
-
-	void addRight(int64_t val) {
-		if (value_.has_value()) {
-			value_.value() += val;
-		}
-		else {
-			right_->addRight(val);
-		}
-	}
-
-	void addRightUpward(int64_t val) {
-		if (parent_ == nullptr) {
-			return;
-		}
-		if (parent_->right_.get() == this) {
-			parent_->addRightUpward(val);
-		}
-		else {
-			parent_->right_->addLeft(val);
-		}
-	}
-
-	void addLeftUpward(int64_t val) {
-		if (parent_ == nullptr) {
-			return;
-		}
-		if (parent_->left_.get() == this) {
-			parent_->addLeftUpward(val);
-		}
-		else {
-			parent_->left_->addRight(val);
-		}
-	}
-
-	std::string toString() const {
-		if (value_.has_value()) {
-			return std::to_string(value_.value());
-		}
-		else {
-			return '[' + left_->toString() + ',' + right_->toString() + ']';
-		}
-	}
-
-};
+using Number = common::BinaryNode<int64_t>;
 
 std::shared_ptr<Number> parseNumber(const std::string& line) {
 	if (line.size() == 1) {
@@ -191,11 +47,11 @@ DataType read() {
 }
 
 bool shouldExplodeThisNumber(const Number& number, int depth) {
-	return depth == 4 && !number.isValue() && number.left().isValue() && number.right().isValue();
+	return depth == 4 && !number.isLeaf() && number.left().isLeaf() && number.right().isLeaf();
 }
 
 bool tryExplodeChilds(Number& number, int depth) {
-	if (number.isValue()) {
+	if (number.isLeaf()) {
 		return false;
 	}
 
@@ -204,9 +60,14 @@ bool tryExplodeChilds(Number& number, int depth) {
 	if (shouldExplodeThisNumber(left, depth + 1)) {
 		auto childRightValue = left.right().value();
 		auto childLeftValue = left.left().value();
-		right.addLeft(childRightValue);
+		right.transformLeftmostLeaf([childRightValue](auto& leaf) {
+			leaf.value() += childRightValue;
+		});
+		left.removeChildren();
 		left.setValue(0);
-		number.addLeftUpward(childLeftValue);
+		number.transformRightmostLeafLeftBranch([childLeftValue](auto& leaf) {
+			leaf.value() += childLeftValue;
+		});
 		return true;
 	}
 	bool exploded = tryExplodeChilds(number.left(), depth + 1);
@@ -217,9 +78,14 @@ bool tryExplodeChilds(Number& number, int depth) {
 	if (shouldExplodeThisNumber(right, depth + 1)) {
 		auto childRightValue = right.right().value();
 		auto childLeftValue = right.left().value();
-		left.addRight(childLeftValue);
+		left.transformRightmostLeaf([childLeftValue](auto& leaf) {
+			leaf.value() += childLeftValue;
+		});
+		right.removeChildren();
 		right.setValue(0);
-		number.addRightUpward(childRightValue);
+		number.transformLeftmostLeafRightBranch([childRightValue](auto& leaf) {
+			leaf.value() += childRightValue;
+		});
 		return true;
 	}
 
@@ -227,13 +93,13 @@ bool tryExplodeChilds(Number& number, int depth) {
 }
 
 bool trySplitChilds(Number& number) {
-	if (number.isValue()) {
+	if (number.isLeaf()) {
 		return false;
 	}
 
 	auto& left = number.left();
 	auto& right = number.right();
-	if (left.isValue() && left.value() > 9) {
+	if (left.isLeaf() && left.value() > 9) {
 		auto prevValue = left.value();
 		auto childLeft = std::make_shared<Number>(prevValue / 2);
 		auto childRight = std::make_shared<Number>(prevValue - prevValue/2);
@@ -247,7 +113,7 @@ bool trySplitChilds(Number& number) {
 		return true;
 	}
 
-	if (right.isValue() && right.value() > 9) {
+	if (right.isLeaf() && right.value() > 9) {
 		auto prevValue = right.value();
 		auto childLeft = std::make_shared<Number>(prevValue / 2);
 		auto childRight = std::make_shared<Number>(prevValue - prevValue / 2);
@@ -258,8 +124,8 @@ bool trySplitChilds(Number& number) {
 	return trySplitChilds(right);
 }
 
-bool reduce(Number& number, int depth) {
-	bool exploded = tryExplodeChilds(number, depth);
+bool reduce(Number& number) {
+	bool exploded = tryExplodeChilds(number, 0);
 	if (!exploded) {
 		return trySplitChilds(number);
 	}
@@ -269,8 +135,12 @@ bool reduce(Number& number, int depth) {
 void reduceAll(Number& number) {
 	bool reduced = true;
 	while (reduced) {
-		reduced = reduce(number, 0);
+		reduced = reduce(number);
 	}
+}
+
+int64_t magnitude(const int64_t& left, const int64_t& right) {
+	return 3 * left + 2 * right;
 }
 
 int64_t addAndCalculateMagnitude(const Number& left, const Number& right) {
@@ -278,7 +148,7 @@ int64_t addAndCalculateMagnitude(const Number& left, const Number& right) {
 	auto cr = right.clone();
 	auto number = std::make_shared<Number>(cl, cr);
 	reduceAll(*number);
-	return number->magnitude();
+	return number->reduceLeafs<int64_t>(magnitude);
 }
 
 int64_t partOne(const DataType& data) {
@@ -289,7 +159,7 @@ int64_t partOne(const DataType& data) {
 		reduceAll(*newLeft);
 		left = newLeft;
 	}
-	return left->magnitude();
+	return left->reduceLeafs<int64_t>(magnitude);
 }
 
 int64_t partTwo(const DataType& data) {

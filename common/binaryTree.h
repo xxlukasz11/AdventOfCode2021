@@ -8,7 +8,7 @@ namespace common {
 template<typename ValueT>
 class BinaryNode {
 
-	ValueT value_;
+	ValueT value_{};
 	std::shared_ptr<BinaryNode> left_;
 	std::shared_ptr<BinaryNode> right_;
 	BinaryNode* parent_{ nullptr };
@@ -46,11 +46,11 @@ public:
 	}
 
 	bool hasLeft() const {
-		return left_;
+		return left_.operator bool();
 	}
 
 	bool hasRight() const {
-		return right_;
+		return right_.operator bool();
 	}
 
 	void setValue(int64_t value) {
@@ -93,7 +93,11 @@ public:
 		return *right_;
 	}
 
-	ValueT value() const {
+	const ValueT& value() const {
+		return value_;
+	}
+
+	ValueT& value() {
 		return value_;
 	}
 
@@ -131,10 +135,10 @@ public:
 			func(*this);
 		}
 		else if (hasRight()) {
-			right_->transformLeftmostLeaf(func);
+			right_->transformRightmostLeaf(func);
 		}
 		else {
-			left_->transformLeftmostLeaf(func);
+			left_->transformRightmostLeaf(func);
 		}
 	}
 
@@ -146,7 +150,7 @@ public:
 			parent_->transformLeftmostLeafRightBranch(func);
 		}
 		else {
-			parent_->right()->transformLeftmostLeaf(func);
+			parent_->right().transformLeftmostLeaf(func);
 		}
 	}
 
@@ -158,23 +162,56 @@ public:
 			parent_->transformRightmostLeafLeftBranch(func);
 		}
 		else {
-			parent_->left()->transformRightmostLeaf(func);
+			parent_->left().transformRightmostLeaf(func);
 		}
+	}
+
+	std::shared_ptr<BinaryNode> detachLeft() {
+		auto detached = left_;
+		left_.reset();
+		if (!hasRight()) {
+			isLeaf_ = true;
+		}
+		detached->parent_ = nullptr;
+		return detached;
+	}
+
+	std::shared_ptr<BinaryNode> detachRight() {
+		auto detached = right_;
+		right_.reset();
+		if (!hasLeft()) {
+			isLeaf_ = true;
+		}
+		detached->parent_ = nullptr;
+		return detached;
+	}
+
+	template<typename T>
+	T reduceLeafs(std::function<T(const T&, const T&)> func) const {
+		if (isLeaf()) {
+			return value_;
+		}
+		if (hasLeft() && hasRight()) {
+			return func(left_->reduceLeafs(func), right_->reduceLeafs(func));
+		}
+		if (hasLeft()) {
+			return left_->reduceLeafs(func);
+		}
+		return right_->reduceLeafs(func);
 	}
 
 	std::string toString(char braceLeft, char braceRight) const {
 		if (isLeaf()) {
-			return std::to_string(value_.value());
+			return std::to_string(value_);
 		}
 		if (hasRight() && hasLeft()) {
 			return braceLeft + left_->toString(braceLeft, braceRight) + ',' + right_->toString(braceLeft, braceRight) + braceRight;
 		}
-		if (hasRight()) {
-			return braceLeft + right_->toString(braceLeft, braceRight) + braceRight;
-		}
 		if (hasLeft()) {
 			return braceLeft + left_->toString(braceLeft, braceRight) + braceRight;
 		}
+		return braceLeft + right_->toString(braceLeft, braceRight) + braceRight;
+		
 	}
 
 };
