@@ -3,12 +3,7 @@
 #include <cstdint>
 #include <string>
 #include <algorithm>
-#include <numeric>
-#include <utility>
-#include <sstream>
 #include <vector>
-#include <map>
-#include <set>
 
 class Number {
 	std::optional<int64_t> value_;
@@ -17,15 +12,15 @@ class Number {
 	Number* parent_{ nullptr };
 
 public:
-	Number(int64_t value) : value_(value) {}
+	explicit Number(int64_t value) : value_(value) {}
 
-	Number(const std::shared_ptr<Number>& left, const std::shared_ptr<Number>& right) :
+	explicit Number(const std::shared_ptr<Number>& left, const std::shared_ptr<Number>& right) :
 		left_(left), right_(right) {
 		left_->parent_ = this;
 		right_->parent_ = this;
 	}
 
-	Number(const Number& number) {
+	explicit Number(const Number& number) {
 		if (number.isValue()) {
 			value_ = number.value_.value();
 		}
@@ -41,7 +36,7 @@ public:
 		return parent_ != nullptr;
 	}
 
-	Number* parent() {
+	Number* parent() const {
 		return parent_;
 	}
 
@@ -61,12 +56,20 @@ public:
 		right_->parent_ = this;
 	}
 
-	std::shared_ptr<Number> left() const {
-		return left_;
+	Number& left() {
+		return *left_;
 	}
 
-	std::shared_ptr<Number> right() const {
-		return right_;
+	const Number& left() const {
+		return *left_;
+	}
+
+	Number& right() {
+		return *right_;
+	}
+
+	const Number& right() const {
+		return *right_;
 	}
 
 	int64_t value() const {
@@ -77,7 +80,7 @@ public:
 		return value_.has_value();
 	}
 
-	int64_t magnitude() {
+	int64_t magnitude() const {
 		if (value_.has_value()) {
 			return value_.value();
 		}
@@ -117,11 +120,11 @@ public:
 		if (parent_ == nullptr) {
 			return;
 		}
-		if (parent_->right().get() == this) {
+		if (parent_->right_.get() == this) {
 			parent_->addRightUpward(val);
 		}
 		else {
-			parent_->right()->addLeft(val);
+			parent_->right_->addLeft(val);
 		}
 	}
 
@@ -129,11 +132,11 @@ public:
 		if (parent_ == nullptr) {
 			return;
 		}
-		if (parent_->left().get() == this) {
+		if (parent_->left_.get() == this) {
 			parent_->addLeftUpward(val);
 		}
 		else {
-			parent_->left()->addRight(val);
+			parent_->left_->addRight(val);
 		}
 	}
 
@@ -177,7 +180,6 @@ std::shared_ptr<Number> parseNumber(const std::string& line) {
 }
 
 using DataType = std::vector<std::shared_ptr<Number>>;
-
 DataType read() {
 	common::FileReader reader("input.txt");
 	DataType data;
@@ -188,58 +190,55 @@ DataType read() {
 	return data;
 }
 
-bool shouldExplodeThisNumber(std::shared_ptr<Number> number, int currentLevel) {
-	return currentLevel == 4 && !number->isValue() && number->left()->isValue() && number->right()->isValue();
+bool shouldExplodeThisNumber(const Number& number, int depth) {
+	return depth == 4 && !number.isValue() && number.left().isValue() && number.right().isValue();
 }
 
-bool reduce(std::shared_ptr<Number> number, int currentLevel);
-
-bool tryExplodeChilds(const std::shared_ptr<Number>& number, int currentLevel) {
-	if (number->isValue()) {
+bool tryExplodeChilds(Number& number, int depth) {
+	if (number.isValue()) {
 		return false;
 	}
 
-	auto left = number->left();
-	auto right = number->right();
-	if (shouldExplodeThisNumber(left, currentLevel + 1)) {
-		auto childRightValue = left->right()->value();
-		auto childLeftValue = left->left()->value();
-		right->addLeft(childRightValue);
-		left->setValue(0);
-		number->addLeftUpward(childLeftValue);
+	auto& left = number.left();
+	auto& right = number.right();
+	if (shouldExplodeThisNumber(left, depth + 1)) {
+		auto childRightValue = left.right().value();
+		auto childLeftValue = left.left().value();
+		right.addLeft(childRightValue);
+		left.setValue(0);
+		number.addLeftUpward(childLeftValue);
 		return true;
 	}
-	bool exploded = tryExplodeChilds(number->left(), currentLevel + 1);
+	bool exploded = tryExplodeChilds(number.left(), depth + 1);
 	if (exploded) {
 		return true;
 	}
 
-	if (shouldExplodeThisNumber(right, currentLevel + 1)) {
-		auto childRightValue = right->right()->value();
-		auto childLeftValue = right->left()->value();
-		left->addRight(childLeftValue);
-		right->setValue(0);
-		number->addRightUpward(childRightValue);
+	if (shouldExplodeThisNumber(right, depth + 1)) {
+		auto childRightValue = right.right().value();
+		auto childLeftValue = right.left().value();
+		left.addRight(childLeftValue);
+		right.setValue(0);
+		number.addRightUpward(childRightValue);
 		return true;
 	}
 
-	return tryExplodeChilds(number->right(), currentLevel + 1);
+	return tryExplodeChilds(number.right(), depth + 1);
 }
 
-bool trySplitChilds(const std::shared_ptr<Number>& number) {
-	if (number->isValue()) {
+bool trySplitChilds(Number& number) {
+	if (number.isValue()) {
 		return false;
 	}
 
-	auto left = number->left();
-	auto right = number->right();
-	if (left->isValue() && left->value() > 9) {
-		// split left
-		auto prevValue = left->value();
+	auto& left = number.left();
+	auto& right = number.right();
+	if (left.isValue() && left.value() > 9) {
+		auto prevValue = left.value();
 		auto childLeft = std::make_shared<Number>(prevValue / 2);
 		auto childRight = std::make_shared<Number>(prevValue - prevValue/2);
 		auto newLeft = std::make_shared<Number>(childLeft, childRight);
-		number->setLeft(newLeft);
+		number.setLeft(newLeft);
 		return true;
 	}
 
@@ -248,38 +247,37 @@ bool trySplitChilds(const std::shared_ptr<Number>& number) {
 		return true;
 	}
 
-	if (right->isValue() && right->value() > 9) {
-		// split right
-		auto prevValue = right->value();
+	if (right.isValue() && right.value() > 9) {
+		auto prevValue = right.value();
 		auto childLeft = std::make_shared<Number>(prevValue / 2);
 		auto childRight = std::make_shared<Number>(prevValue - prevValue / 2);
 		auto newRight = std::make_shared<Number>(childLeft, childRight);
-		number->setRight(newRight);
+		number.setRight(newRight);
 		return true;
 	}
 	return trySplitChilds(right);
 }
 
-bool reduce(std::shared_ptr<Number> number, int currentLevel) {
-	bool exploded = tryExplodeChilds(number, currentLevel);
+bool reduce(Number& number, int depth) {
+	bool exploded = tryExplodeChilds(number, depth);
 	if (!exploded) {
 		return trySplitChilds(number);
 	}
 	return true;
 }
 
-void reduceAll(std::shared_ptr<Number> number) {
+void reduceAll(Number& number) {
 	bool reduced = true;
 	while (reduced) {
 		reduced = reduce(number, 0);
 	}
 }
 
-int64_t addAndCalculateMagnitude(const std::shared_ptr<Number>& left, const std::shared_ptr<Number>& right) {
-	auto cl = left->clone();
-	auto cr = right->clone();
+int64_t addAndCalculateMagnitude(const Number& left, const Number& right) {
+	auto cl = left.clone();
+	auto cr = right.clone();
 	auto number = std::make_shared<Number>(cl, cr);
-	reduceAll(number);
+	reduceAll(*number);
 	return number->magnitude();
 }
 
@@ -288,7 +286,7 @@ int64_t partOne(const DataType& data) {
 	for (int i = 1; i < data.size(); ++i) {
 		auto right = data[i]->clone();
 		auto newLeft = std::make_shared<Number>(left, right);
-		reduceAll(newLeft);
+		reduceAll(*newLeft);
 		left = newLeft;
 	}
 	return left->magnitude();
@@ -298,14 +296,9 @@ int64_t partTwo(const DataType& data) {
 	int64_t largestMagnitude = 0;
 	for (const auto& left : data) {
 		for (const auto& right : data) {
-			auto magnitude = addAndCalculateMagnitude(left, right);
+			auto magnitude = addAndCalculateMagnitude(*left, *right);
 			if (magnitude > largestMagnitude) {
 				largestMagnitude = magnitude;
-			}
-
-			auto revMagnitude = addAndCalculateMagnitude(right, left);
-			if (revMagnitude > largestMagnitude) {
-				largestMagnitude = revMagnitude;
 			}
 		}
 	}
