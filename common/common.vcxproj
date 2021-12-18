@@ -157,6 +157,7 @@
   <ItemGroup>
     <ClInclude Include="aggregateFactory.h" />
     <ClInclude Include="benchmark.h" />
+    <ClInclude Include="binaryTree.h" />
     <ClInclude Include="conversions.h" />
     <ClInclude Include="neighborUtils.h" />
     <ClInclude Include="fileReader.h" />

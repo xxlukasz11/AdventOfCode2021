@@ -15,5 +15,6 @@
 #include "neighborUtils.h"
 #include "benchmark.h"
 #include "conversions.h"
+#include "binaryTree.h"
 
 #endif //PCH_H
