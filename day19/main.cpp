@@ -190,11 +190,10 @@ using DataType = std::vector<ScannerData>;
 DataType read() {
 	common::FileReader reader("input.txt");
 	DataType data;
+	int scannerId = 0;
 	for (std::string line; reader.nextLine(line);) {
 		ScannerData scannerData;
-		auto rCharacter = line.find('r');
-		std::istringstream ss(line.substr(rCharacter + 1));
-		ss >> scannerData.scannerId;
+		scannerData.scannerId = scannerId++;
 		while (reader.nextLine(line) && !line.empty()) {
 			auto coords = common::parseArray<int>(line, ',');
 			Vec3D vec = { coords[0], coords[1], coords[2] };
@@ -310,12 +309,13 @@ Vec3D getTranslationVector(const ScannerData& scannerToTranslate, const ScannerR
 	const auto baseScannerCommonPoints = filterPoints(baseScanner.beacons, relation.firstScannerPoints);
 	const auto secondScannerCommonPoints = filterPoints(scannerToTranslate.beacons, relation.secondScannerPoints);
 
-	int maxXBase = std::numeric_limits<int>::min();
-	int maxXSecond = std::numeric_limits<int>::min();
-	int maxYBase = std::numeric_limits<int>::min();
-	int maxYSecond = std::numeric_limits<int>::min();
-	int maxZBase = std::numeric_limits<int>::min();
-	int maxZSecond = std::numeric_limits<int>::min();
+	constexpr int MIN_INT = std::numeric_limits<int>::min();
+	int maxXBase = MIN_INT;
+	int maxXSecond = MIN_INT;
+	int maxYBase = MIN_INT;
+	int maxYSecond = MIN_INT;
+	int maxZBase = MIN_INT;
+	int maxZSecond = MIN_INT;
 
 	for (const auto [x, y, z] : baseScannerCommonPoints) {
 		if (x > maxXBase) {
