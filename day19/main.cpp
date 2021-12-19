@@ -11,131 +11,7 @@
 #include <cmath>
 #include <array>
 
-struct Vec3D {
-	int x{ 0 };
-	int y{ 0 };
-	int z{ 0 };
-
-	std::string toString() const {
-		std::ostringstream ss;
-		ss << x << "," << y << "," << z;
-		return ss.str();
-	}
-
-	bool operator<(const Vec3D& vec) const {
-		if (x != vec.x) {
-			return x < vec.x;
-		}
-		if (y != vec.y) {
-			return y < vec.y;
-		}
-		return z < vec.z;
-	}
-
-	bool operator==(const Vec3D& vec) const {
-		return x == vec.x && y == vec.y && z == vec.z;
-	}
-
-	Vec3D operator-(const Vec3D& vec) const {
-		return { x - vec.x, y - vec.y, z - vec.z };
-	}
-
-	Vec3D& operator+=(const Vec3D& vec) {
-		x += vec.x;
-		y += vec.y;
-		z += vec.z;
-		return *this;
-	}
-
-	double dist(const Vec3D& vec) const {
-		return sqrt(1.0*pow(x - vec.x, 2) + pow(y - vec.y, 2) + pow(z - vec.z, 2));
-	}
-
-	Vec3D relative(const Vec3D& vec) const {
-		return { x - vec.x, y - vec.y, z - vec.z };
-	}
-
-	void rotateRightXY() {
-		int tmp = x;
-		x = y;
-		y = -tmp;
-	}
-
-	void rotateLeftXY() {
-		int tmp = x;
-		x = -y;
-		y = tmp;
-	}
-
-	void rotateRightXZ() {
-		int tmp = x;
-		x = z;
-		z = -tmp;
-	}
-
-	void rotateLeftXZ() {
-		int tmp = x;
-		x = -z;
-		z = tmp;
-	}
-
-	void rotateRightYZ() {
-		int tmp = y;
-		y = z;
-		z = -tmp;
-	}
-
-	void rotateLeftYZ() {
-		int tmp = y;
-		y = -z;
-		z = tmp;
-	}
-
-	void rotateXY(int turns) {
-		if (turns < 0) {
-			int count = -turns / 4 + 1;
-			turns += 4 * count;
-		}
-		turns %= 4;
-		
-		switch (turns) {
-			case 0: break;
-			case 1: rotateRightXY(); break;
-			case 2: y = -y; x = -x; break;
-			case 3: rotateLeftXY(); break;
-		}
-	}
-
-	void rotateXZ(int turns) {
-		if (turns < 0) {
-			int count = -turns / 4 + 1;
-			turns += 4 * count;
-		}
-		turns %= 4;
-
-		switch (turns) {
-			case 0: break;
-			case 1: rotateRightXZ(); break;
-			case 2: z = -z; x = -x; break;
-			case 3: rotateLeftXZ(); break;
-		}
-	}
-
-	void rotateYZ(int turns) {
-		if (turns < 0) {
-			int count = -turns / 4 + 1;
-			turns += 4 * count;
-		}
-		turns %= 4;
-
-		switch (turns) {
-			case 0: break;
-			case 1: rotateRightYZ(); break;
-			case 2: z = -z; y = -y; break;
-			case 3: rotateLeftYZ(); break;
-		}
-	}
-};
+using Vec3D = common::Vec3<int>;
 
 struct ScannerData {
 	int scannerId;
@@ -208,7 +84,7 @@ std::vector<Connection> createConnections(const std::vector<Vec3D>& data) {
 	std::vector<Connection> c;
 	for (int i = 0; i < data.size(); ++i) {
 		for (int j = i + 1; j < data.size(); ++j) {
-			c.push_back(Connection{i, j, data[i].dist(data[j])});
+			c.push_back(Connection{i, j, data[i].distance(data[j])});
 		}
 	}
 	return c;
@@ -218,8 +94,8 @@ std::vector<RelativeConnection> createRelativeConnections(const std::vector<Vec3
 	std::vector<RelativeConnection> c;
 	for (int i = 0; i < data.size(); ++i) {
 		for (int j = i + 1; j < data.size(); ++j) {
-			c.push_back(RelativeConnection{ i, j, data[i].relative(data[j]) });
-			c.push_back(RelativeConnection{ j, i, data[j].relative(data[i]) });
+			c.push_back(RelativeConnection{ i, j, data[i].relativeVec(data[j]) });
+			c.push_back(RelativeConnection{ j, i, data[j].relativeVec(data[i]) });
 		}
 	}
 	return c;
@@ -341,6 +217,26 @@ void translateScanner(ScannerData& scannerToTranslate, const ScannerRelation& re
 	scannerToTranslate.translate(translationVector);
 }
 
+int countMatchingConnections(const std::vector<RelativeConnection>& left, const std::vector<RelativeConnection>& right) {
+	int noOfMatchingConnections = 0;
+	for (const auto& firstConnection : left) {
+		for (const auto& secondConnection : right) {
+			if (firstConnection.relative == secondConnection.relative) {
+				++noOfMatchingConnections;
+			}
+		}
+	}
+	return noOfMatchingConnections;
+}
+
+bool areScannersMatching(const ScannerRelation& relation, const std::vector<RelativeConnection>& firstScannerConnections, const ScannerData& secondScanner) {
+	const auto secondScannerCommonPoints = filterPoints(secondScanner.beacons, relation.secondScannerPoints);
+	const auto secondScannerConnections = createRelativeConnections(secondScannerCommonPoints);
+	int noOfMatchingConnections = countMatchingConnections(firstScannerConnections, secondScannerConnections);
+	constexpr int doubleConnectionsOfTwelvePoints = 132;
+	return noOfMatchingConnections == doubleConnectionsOfTwelvePoints;
+}
+
 std::map<int, ScannerData> rotateScanners(const DataType& scanners, const std::vector<ScannerRelation>& relations) {
 	std::map<int, ScannerData> rotatedScanners;
 	const auto& firstScannerInTheList = scanners[0];
@@ -349,24 +245,11 @@ std::map<int, ScannerData> rotateScanners(const DataType& scanners, const std::v
 		const auto& firstScanner = rotatedScanners.find(relation.firstScannerId)->second;
 		const auto& secondScanner = scanners[relation.secondScannerId];
 		const auto firstScannerCommonPoints = filterPoints(firstScanner.beacons, relation.firstScannerPoints);
-		const auto fistScannerConnections = createRelativeConnections(firstScannerCommonPoints);
+		const auto firstScannerConnections = createRelativeConnections(firstScannerCommonPoints);
 
 		const auto secondScannerVariants = getAllVariants(secondScanner);
 		for (const auto& secondScannerVariant : secondScannerVariants) {
-
-			const auto secondScannerCommonPoints = filterPoints(secondScannerVariant.beacons, relation.secondScannerPoints);
-			const auto secondScannerConnections = createRelativeConnections(secondScannerCommonPoints);
-
-			int noOfMatchingConnections = 0;
-			for (const auto& firstConnection : fistScannerConnections) {
-				for (const auto& secondConnection : secondScannerConnections) {
-					if (firstConnection.relative == secondConnection.relative) {
-						++noOfMatchingConnections;
-					}
-				}
-			}
-			constexpr int doubleConnectionsOfTwelvePoints = 132;
-			if (noOfMatchingConnections == doubleConnectionsOfTwelvePoints) {
+			if (areScannersMatching(relation, firstScannerConnections, secondScannerVariant)) {
 				rotatedScanners.emplace(secondScannerVariant.scannerId, secondScannerVariant);
 			}
 		}

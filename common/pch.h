@@ -16,5 +16,6 @@
 #include "benchmark.h"
 #include "conversions.h"
 #include "binaryTree.h"
+#include "Vec3.h"
 
 #endif //PCH_H
