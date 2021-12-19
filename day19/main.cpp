@@ -241,17 +241,18 @@ std::vector<ScannerData> getAllVariants(const ScannerData& scannerData) {
 		data.rotateXZ(1);
 		variants.push_back(data);
 		data.rotateXZ(2);
-		variants.push_back(data);
+		variants.push_back(std::move(data));
 	}
 	return variants;
 }
 
 std::pair<std::set<int>, std::set<int>> countMatchingPoints(const std::vector<Connection>& connections1, const std::vector<Connection>& connections2) {
+	static auto EPSILON = std::numeric_limits<double>::epsilon();
 	std::set<int> idx1;
 	std::set<int> idx2;
 	for (const auto& c1 : connections1) {
 		auto found = std::find_if(connections2.begin(), connections2.end(), [&c1](const Connection& conn) {
-			return abs(conn.distance - c1.distance) < 0.000000000001;
+			return abs(conn.distance - c1.distance) < EPSILON;
 		});
 		if (found != connections2.end()) {
 			idx1.insert(c1.firstId);
@@ -260,18 +261,18 @@ std::pair<std::set<int>, std::set<int>> countMatchingPoints(const std::vector<Co
 			idx2.insert(found->secondId);
 		}
 	}
-
 	return { idx1, idx2 };
 }
 
 std::vector<ScannerRelation> findMatchingScanners(
+		const DataType& scanners,
 		const ScannerData& baseScanner,
 		std::map<int, ScannerData>& scannersWithoutPair,
 		const std::map<int, std::vector<Connection>>& connectionsMap) {
 
 	std::vector<ScannerRelation> localPairs;
 	const auto& baseConnections = connectionsMap.find(baseScanner.scannerId)->second;
-	for (const auto [scannerId, _] : scannersWithoutPair) {
+	for (const auto& [scannerId, _] : scannersWithoutPair) {
 		const auto& otherConnections = connectionsMap.find(scannerId)->second;
 		auto [points1, points2] = countMatchingPoints(baseConnections, otherConnections);
 		if (std::min(points1.size(), points2.size()) >= 12) {
@@ -279,20 +280,21 @@ std::vector<ScannerRelation> findMatchingScanners(
 		}
 	}
 
-	std::vector<ScannerData> scannersToCheck;
+	std::vector<int> scannerIdsToCheck;
 	for (const auto& matchResult : localPairs) {
-		int id = matchResult.secondScannerId;
-		scannersToCheck.push_back(scannersWithoutPair[id]);
-		scannersWithoutPair.erase(id);
+		int scannerId = matchResult.secondScannerId;
+		scannerIdsToCheck.push_back(scannerId);
+		scannersWithoutPair.erase(scannerId);
 	}
 	if (scannersWithoutPair.empty()) {
 		return localPairs;
 	}
 
 	auto allPairs = localPairs;
-	for (auto scanner : scannersToCheck) {
-		auto matches = findMatchingScanners(scanner, scannersWithoutPair, connectionsMap);
-		std::copy(matches.begin(), matches.end(), std::back_inserter(allPairs));
+	for (const auto& scannerId : scannerIdsToCheck) {
+		const auto& scanner = scanners[scannerId];
+		auto matches = findMatchingScanners(scanners, scanner, scannersWithoutPair, connectionsMap);
+		std::move(matches.begin(), matches.end(), std::back_inserter(allPairs));
 	}
 	return allPairs;
 }
@@ -318,30 +320,14 @@ Vec3D getTranslationVector(const ScannerData& scannerToTranslate, const ScannerR
 	int maxZSecond = MIN_INT;
 
 	for (const auto [x, y, z] : baseScannerCommonPoints) {
-		if (x > maxXBase) {
-			maxXBase = x;
-		}
-
-		if (y > maxYBase) {
-			maxYBase = y;
-		}
-
-		if (z > maxZBase) {
-			maxZBase = z;
-		}
+		maxXBase = std::max(maxXBase, x);
+		maxYBase = std::max(maxYBase, y);
+		maxZBase = std::max(maxZBase, z);
 	}
 	for (const auto [x, y, z] : secondScannerCommonPoints) {
-		if (x > maxXSecond) {
-			maxXSecond = x;
-		}
-
-		if (y > maxYSecond) {
-			maxYSecond = y;
-		}
-
-		if (z > maxZSecond) {
-			maxZSecond = z;
-		}
+		maxXSecond = std::max(maxXSecond, x);
+		maxYSecond = std::max(maxYSecond, y);
+		maxZSecond = std::max(maxZSecond, z);
 	}
 
 	return {maxXBase - maxXSecond, maxYBase - maxYSecond, maxZBase - maxZSecond};
@@ -355,22 +341,7 @@ void translateScanner(ScannerData& scannerToTranslate, const ScannerRelation& re
 	scannerToTranslate.translate(translationVector);
 }
 
-int partOne(const DataType& scanners) {
-	std::map<int, ScannerData> scannersWithoutPair;
-	for (const auto& scanner : scanners) {
-		scannersWithoutPair.emplace(scanner.scannerId, scanner);
-	}
-
-	std::map<int, std::vector<Connection>> connectionsMap;
-	for (const auto& scanner : scanners) {
-		connectionsMap.emplace(scanner.scannerId, createConnections(scanner.beacons));
-	}
-
-	ScannerData baseScanner = scanners[0];
-	scannersWithoutPair.erase(0);
-	auto relations = findMatchingScanners(baseScanner, scannersWithoutPair, connectionsMap);
-
-
+std::map<int, ScannerData> rotateScanners(const DataType& scanners, const std::vector<ScannerRelation>& relations) {
 	std::map<int, ScannerData> rotatedScanners;
 	const auto& firstScannerInTheList = scanners[0];
 	rotatedScanners.emplace(firstScannerInTheList.scannerId, firstScannerInTheList);
@@ -378,39 +349,54 @@ int partOne(const DataType& scanners) {
 		const auto& firstScanner = rotatedScanners.find(relation.firstScannerId)->second;
 		const auto& secondScanner = scanners[relation.secondScannerId];
 		const auto firstScannerCommonPoints = filterPoints(firstScanner.beacons, relation.firstScannerPoints);
-		auto fistScannerConnections = createRelativeConnections(firstScannerCommonPoints);
+		const auto fistScannerConnections = createRelativeConnections(firstScannerCommonPoints);
 
 		const auto secondScannerVariants = getAllVariants(secondScanner);
 		for (const auto& secondScannerVariant : secondScannerVariants) {
-			
-			const auto secondScannerCommonPoints = filterPoints(secondScannerVariant.beacons, relation.secondScannerPoints);
-			auto secondScannerConnections = createRelativeConnections(secondScannerCommonPoints);
 
-			int noOfMatches = 0;
-			for (auto firstConnection : fistScannerConnections) {
-				for (auto secondConnection : secondScannerConnections) {
+			const auto secondScannerCommonPoints = filterPoints(secondScannerVariant.beacons, relation.secondScannerPoints);
+			const auto secondScannerConnections = createRelativeConnections(secondScannerCommonPoints);
+
+			int noOfMatchingConnections = 0;
+			for (const auto& firstConnection : fistScannerConnections) {
+				for (const auto& secondConnection : secondScannerConnections) {
 					if (firstConnection.relative == secondConnection.relative) {
-						++noOfMatches;
+						++noOfMatchingConnections;
 					}
 				}
 			}
-			if (noOfMatches == 132) {
+			constexpr int doubleConnectionsOfTwelvePoints = 132;
+			if (noOfMatchingConnections == doubleConnectionsOfTwelvePoints) {
 				rotatedScanners.emplace(secondScannerVariant.scannerId, secondScannerVariant);
 			}
 		}
 	}
+	return rotatedScanners;
+}
 
+int partOne(const DataType& scanners) {
+	std::map<int, ScannerData> scannersWithoutPair;
+	std::transform(scanners.begin(), scanners.end(), std::inserter(scannersWithoutPair, scannersWithoutPair.end()),
+		[](auto& scanner) { return std::make_pair(scanner.scannerId, scanner); });
+
+	std::map<int, std::vector<Connection>> connectionsMap;
+	std::transform(scanners.begin(), scanners.end(), std::inserter(connectionsMap, connectionsMap.end()),
+		[](auto& scanner) { return std::make_pair(scanner.scannerId, createConnections(scanner.beacons)); });
+
+	const auto& baseScanner = scanners[0];
+	scannersWithoutPair.erase(0);
+	const auto relations = findMatchingScanners(scanners, baseScanner, scannersWithoutPair, connectionsMap);
+
+	auto rotatedScanners = rotateScanners(scanners, relations);
 	for (const auto& relation : relations) {
 		const auto& baseScanner = rotatedScanners.find(relation.firstScannerId)->second;
-		auto& secondScanner = rotatedScanners[relation.secondScannerId];
+		auto& secondScanner = rotatedScanners.find(relation.secondScannerId)->second;
 		translateScanner(secondScanner, relation, baseScanner);
 	}
 
 	std::set<Vec3D> allBeacons;
 	for (const auto& [_, scanner] : rotatedScanners) {
-		for (const auto& beacon : scanner.beacons) {
-			allBeacons.insert(beacon);
-		}
+		allBeacons.insert(scanner.beacons.begin(), scanner.beacons.end());
 	}
 	return allBeacons.size();
 }
