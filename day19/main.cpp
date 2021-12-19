@@ -3,13 +3,13 @@
 #include <cstdint>
 #include <string>
 #include <algorithm>
-#include <numeric>
 #include <utility>
 #include <sstream>
 #include <vector>
 #include <map>
 #include <set>
 #include <cmath>
+#include <array>
 
 struct Vec3D {
 	int x{ 0 };
@@ -51,33 +51,44 @@ struct Vec3D {
 		return sqrt(1.0*pow(x - vec.x, 2) + pow(y - vec.y, 2) + pow(z - vec.z, 2));
 	}
 
-	Vec3D relativeAbs(const Vec3D& vec) const {
-		return { abs(x - vec.x), abs(y - vec.y), abs(z - vec.z) };
-	}
-
 	Vec3D relative(const Vec3D& vec) const {
 		return { x - vec.x, y - vec.y, z - vec.z };
 	}
 
-	void rotateXY() {
-		// turn right { y, -x , z }
+	void rotateRightXY() {
 		int tmp = x;
 		x = y;
 		y = -tmp;
 	}
 
-	void rotateXZ() {
-		// turn right { z, y , -x }
+	void rotateLeftXY() {
+		int tmp = x;
+		x = -y;
+		y = tmp;
+	}
+
+	void rotateRightXZ() {
 		int tmp = x;
 		x = z;
 		z = -tmp;
 	}
 
-	void rotateYZ() {
-		// turn tight  { x, z , -y }
+	void rotateLeftXZ() {
+		int tmp = x;
+		x = -z;
+		z = tmp;
+	}
+
+	void rotateRightYZ() {
 		int tmp = y;
 		y = z;
 		z = -tmp;
+	}
+
+	void rotateLeftYZ() {
+		int tmp = y;
+		y = -z;
+		z = tmp;
 	}
 
 	void rotateXY(int turns) {
@@ -87,8 +98,11 @@ struct Vec3D {
 		}
 		turns %= 4;
 		
-		for (int  i = 0; i < turns; ++i) {
-			rotateXY();
+		switch (turns) {
+			case 0: break;
+			case 1: rotateRightXY(); break;
+			case 2: y = -y; x = -x; break;
+			case 3: rotateLeftXY(); break;
 		}
 	}
 
@@ -99,8 +113,11 @@ struct Vec3D {
 		}
 		turns %= 4;
 
-		for (int i = 0; i < turns; ++i) {
-			rotateXZ();
+		switch (turns) {
+			case 0: break;
+			case 1: rotateRightXZ(); break;
+			case 2: z = -z; x = -x; break;
+			case 3: rotateLeftXZ(); break;
 		}
 	}
 
@@ -111,8 +128,11 @@ struct Vec3D {
 		}
 		turns %= 4;
 
-		for (int i = 0; i < turns; ++i) {
-			rotateYZ();
+		switch (turns) {
+			case 0: break;
+			case 1: rotateRightYZ(); break;
+			case 2: z = -z; y = -y; break;
+			case 3: rotateLeftYZ(); break;
 		}
 	}
 };
@@ -146,21 +166,23 @@ struct ScannerData {
 	}
 };
 
-struct RotationData {
-	int xyTurns{};
-	int xzTurns{};
-	int yzTurns{};
-};
-
 struct Connection {
 	int firstId;
 	int secondId;
 	double distance;
 };
 
-struct ScannerDataWithRotation {
-	ScannerData scannerData;
-	RotationData rotationData;
+struct RelativeConnection {
+	int firstId;
+	int secondId;
+	Vec3D relative;
+};
+
+struct ScannerRelation {
+	int firstScannerId;
+	int secondScannerId;
+	std::set<int> firstScannerPoints;
+	std::set<int> secondScannerPoints;
 };
 
 using DataType = std::vector<ScannerData>;
@@ -193,12 +215,6 @@ std::vector<Connection> createConnections(const std::vector<Vec3D>& data) {
 	return c;
 }
 
-struct RelativeConnection {
-	int firstId;
-	int secondId;
-	Vec3D relative;
-};
-
 std::vector<RelativeConnection> createRelativeConnections(const std::vector<Vec3D>& data) {
 	std::vector<RelativeConnection> c;
 	for (int i = 0; i < data.size(); ++i) {
@@ -210,18 +226,8 @@ std::vector<RelativeConnection> createRelativeConnections(const std::vector<Vec3
 	return c;
 }
 
-std::vector<RelativeConnection> createUnidirectionalRelativeConnections(const std::vector<Vec3D>& data) {
-	std::vector<RelativeConnection> c;
-	for (int i = 0; i < data.size(); ++i) {
-		for (int j = i + 1; j < data.size(); ++j) {
-			c.push_back(RelativeConnection{ i, j, data[i].relative(data[j]) });
-		}
-	}
-	return c;
-}
-
-std::vector<ScannerDataWithRotation> getAllVariants(const ScannerData& scannerData) {
-	std::vector<ScannerDataWithRotation> variants;
+std::vector<ScannerData> getAllVariants(const ScannerData& scannerData) {
+	std::vector<ScannerData> variants;
 	variants.reserve(24);
 
 	for (int xyTurns = 0; xyTurns < 4; ++xyTurns) {
@@ -229,14 +235,14 @@ std::vector<ScannerDataWithRotation> getAllVariants(const ScannerData& scannerDa
 			ScannerData data = scannerData;
 			data.rotateXY(xyTurns);
 			data.rotateYZ(yzTurns);
-			variants.push_back(ScannerDataWithRotation{ data, {xyTurns, 0, yzTurns} });
+			variants.push_back(data);
 		}
 		ScannerData data = scannerData;
 		data.rotateXY(xyTurns);
 		data.rotateXZ(1);
-		variants.push_back(ScannerDataWithRotation{ data, {xyTurns, 1, 0} });
+		variants.push_back(data);
 		data.rotateXZ(2);
-		variants.push_back(ScannerDataWithRotation{ data, {xyTurns, 3, 0} });
+		variants.push_back(data);
 	}
 	return variants;
 }
@@ -259,25 +265,18 @@ std::pair<std::set<int>, std::set<int>> countMatchingPoints(const std::vector<Co
 	return { idx1, idx2 };
 }
 
-struct MatchResult {
-	int firstScannerId;
-	int secondScannerId;
-	std::set<int> firstScannerPoints;
-	std::set<int> secondScannerPoints;
-};
-
-std::vector<MatchResult> findMatchingScanners(
+std::vector<ScannerRelation> findMatchingScanners(
 		const ScannerData& baseScanner,
 		std::map<int, ScannerData>& scannersWithoutPair,
 		const std::map<int, std::vector<Connection>>& connectionsMap) {
 
-	std::vector<MatchResult> localPairs;
+	std::vector<ScannerRelation> localPairs;
 	const auto& baseConnections = connectionsMap.find(baseScanner.scannerId)->second;
 	for (const auto [scannerId, _] : scannersWithoutPair) {
 		const auto& otherConnections = connectionsMap.find(scannerId)->second;
 		auto [points1, points2] = countMatchingPoints(baseConnections, otherConnections);
 		if (std::min(points1.size(), points2.size()) >= 12) {
-			localPairs.push_back(MatchResult{ baseScanner.scannerId, scannerId, points1, points2 });
+			localPairs.push_back(ScannerRelation{ baseScanner.scannerId, scannerId, points1, points2 });
 		}
 	}
 
@@ -307,25 +306,9 @@ std::vector<Vec3D> filterPoints(const std::vector<Vec3D>& data, const std::set<i
 	return filtered;
 }
 
-struct ScannerRelation {
-	int firstScannerId;
-	int secondScannerId;
-	ScannerData secondScannerRotated;
-	MatchResult match;
-};
-
-ScannerData rotateScanner(const ScannerData& base, const RotationData& rotationData) {
-	ScannerData rotated = base;
-	rotated.rotateXY(rotationData.xyTurns);
-	rotated.rotateXZ(rotationData.xzTurns);
-	rotated.rotateYZ(rotationData.yzTurns);
-	return rotated;
-}
-
-
-Vec3D getTranslationVector(const ScannerData& scannerToTranslate, const MatchResult& match, const ScannerData& baseScanner) {
-	const auto baseScannerCommonPoints = filterPoints(baseScanner.beacons, match.firstScannerPoints);
-	const auto secondScannerCommonPoints = filterPoints(scannerToTranslate.beacons, match.secondScannerPoints);
+Vec3D getTranslationVector(const ScannerData& scannerToTranslate, const ScannerRelation& relation, const ScannerData& baseScanner) {
+	const auto baseScannerCommonPoints = filterPoints(baseScanner.beacons, relation.firstScannerPoints);
+	const auto secondScannerCommonPoints = filterPoints(scannerToTranslate.beacons, relation.secondScannerPoints);
 
 	int maxXBase = std::numeric_limits<int>::min();
 	int maxXSecond = std::numeric_limits<int>::min();
@@ -361,14 +344,13 @@ Vec3D getTranslationVector(const ScannerData& scannerToTranslate, const MatchRes
 		}
 	}
 
-
 	return {maxXBase - maxXSecond, maxYBase - maxYSecond, maxZBase - maxZSecond};
 }
 
 static std::vector<Vec3D> scannerPositions{ Vec3D{0, 0, 0} };
 
-void translateScanner(ScannerData& scannerToTranslate, const MatchResult& match, const ScannerData& baseScanner) {
-	Vec3D translationVector = getTranslationVector(scannerToTranslate, match, baseScanner);
+void translateScanner(ScannerData& scannerToTranslate, const ScannerRelation& relation, const ScannerData& baseScanner) {
+	Vec3D translationVector = getTranslationVector(scannerToTranslate, relation, baseScanner);
 	scannerPositions.push_back(Vec3D{ -translationVector.x, -translationVector.y, -translationVector.z});
 	scannerToTranslate.translate(translationVector);
 }
@@ -386,23 +368,22 @@ int partOne(const DataType& scanners) {
 
 	ScannerData baseScanner = scanners[0];
 	scannersWithoutPair.erase(0);
-	auto matches = findMatchingScanners(baseScanner, scannersWithoutPair, connectionsMap);
+	auto relations = findMatchingScanners(baseScanner, scannersWithoutPair, connectionsMap);
 
 
-	std::vector<ScannerRelation> scannerRelations;
 	std::map<int, ScannerData> rotatedScanners;
 	const auto& firstScannerInTheList = scanners[0];
 	rotatedScanners.emplace(firstScannerInTheList.scannerId, firstScannerInTheList);
-	for (const auto& match : matches) {
-		const auto& firstScanner = rotatedScanners.find(match.firstScannerId)->second;
-		const auto& secondScanner = scanners[match.secondScannerId];
-		const auto firstScannerCommonPoints = filterPoints(firstScanner.beacons, match.firstScannerPoints);
+	for (const auto& relation : relations) {
+		const auto& firstScanner = rotatedScanners.find(relation.firstScannerId)->second;
+		const auto& secondScanner = scanners[relation.secondScannerId];
+		const auto firstScannerCommonPoints = filterPoints(firstScanner.beacons, relation.firstScannerPoints);
 		auto fistScannerConnections = createRelativeConnections(firstScannerCommonPoints);
 
 		const auto secondScannerVariants = getAllVariants(secondScanner);
-		for (const auto& [secondScannerVariant, rotationData] : secondScannerVariants) {
+		for (const auto& secondScannerVariant : secondScannerVariants) {
 			
-			const auto secondScannerCommonPoints = filterPoints(secondScannerVariant.beacons, match.secondScannerPoints);
+			const auto secondScannerCommonPoints = filterPoints(secondScannerVariant.beacons, relation.secondScannerPoints);
 			auto secondScannerConnections = createRelativeConnections(secondScannerCommonPoints);
 
 			int noOfMatches = 0;
@@ -414,17 +395,15 @@ int partOne(const DataType& scanners) {
 				}
 			}
 			if (noOfMatches == 132) {
-				scannerRelations.push_back(ScannerRelation{ firstScanner.scannerId, secondScannerVariant.scannerId, secondScannerVariant, match });
 				rotatedScanners.emplace(secondScannerVariant.scannerId, secondScannerVariant);
 			}
 		}
 	}
 
-	for (const auto& [firstScannerId, secondScannerId, secondScannerRotated, match] : scannerRelations) {
-		const auto& baseScanner = rotatedScanners.find(firstScannerId)->second;
-		auto& secondScanner = rotatedScanners[secondScannerId];
-		translateScanner(secondScanner, match, baseScanner);
-		rotatedScanners.emplace(secondScannerId, secondScannerRotated);
+	for (const auto& relation : relations) {
+		const auto& baseScanner = rotatedScanners.find(relation.firstScannerId)->second;
+		auto& secondScanner = rotatedScanners[relation.secondScannerId];
+		translateScanner(secondScanner, relation, baseScanner);
 	}
 
 	std::set<Vec3D> allBeacons;
