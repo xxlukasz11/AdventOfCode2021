@@ -183,10 +183,7 @@ std::vector<Vec3D> filterPoints(const std::vector<Vec3D>& data, const std::set<i
 	return filtered;
 }
 
-Vec3D getTranslationVector(const ScannerData& scannerToTranslate, const ScannerRelation& relation, const ScannerData& baseScanner) {
-	const auto baseScannerCommonPoints = filterPoints(baseScanner.beacons, relation.firstScannerPoints);
-	const auto secondScannerCommonPoints = filterPoints(scannerToTranslate.beacons, relation.secondScannerPoints);
-
+Vec3D getTranslationVector(const std::vector<Vec3D>& baseScannerCommonPoints, const std::vector<Vec3D>& secondScannerCommonPoints) {
 	constexpr int MIN_INT = std::numeric_limits<int>::min();
 	int maxXBase = MIN_INT;
 	int maxXSecond = MIN_INT;
@@ -211,8 +208,8 @@ Vec3D getTranslationVector(const ScannerData& scannerToTranslate, const ScannerR
 
 static std::vector<Vec3D> scannerPositions{ Vec3D{0, 0, 0} };
 
-void translateScanner(ScannerData& scannerToTranslate, const ScannerRelation& relation, const ScannerData& baseScanner) {
-	Vec3D translationVector = getTranslationVector(scannerToTranslate, relation, baseScanner);
+void translateScanner(ScannerData& scannerToTranslate, const std::vector<Vec3D>& baseScannerCommonPoints, const std::vector<Vec3D>& secondScannerCommonPoints) {
+	Vec3D translationVector = getTranslationVector(baseScannerCommonPoints, secondScannerCommonPoints);
 	scannerPositions.push_back(Vec3D{ -translationVector.x, -translationVector.y, -translationVector.z});
 	scannerToTranslate.translate(translationVector);
 }
@@ -229,15 +226,13 @@ int countMatchingConnections(const std::vector<RelativeConnection>& left, const 
 	return noOfMatchingConnections;
 }
 
-bool areScannersMatching(const ScannerRelation& relation, const std::vector<RelativeConnection>& firstScannerConnections, const ScannerData& secondScanner) {
-	const auto secondScannerCommonPoints = filterPoints(secondScanner.beacons, relation.secondScannerPoints);
-	const auto secondScannerConnections = createRelativeConnections(secondScannerCommonPoints);
+bool areScannersMatching(const ScannerRelation& relation, const std::vector<RelativeConnection>& firstScannerConnections, const std::vector<RelativeConnection>& secondScannerConnections) {
 	int noOfMatchingConnections = countMatchingConnections(firstScannerConnections, secondScannerConnections);
 	constexpr int doubleConnectionsOfTwelvePoints = 132;
 	return noOfMatchingConnections == doubleConnectionsOfTwelvePoints;
 }
 
-std::map<int, ScannerData> rotateScanners(const DataType& scanners, const std::vector<ScannerRelation>& relations) {
+std::map<int, ScannerData> rotateAndTranslateScanners(const DataType& scanners, const std::vector<ScannerRelation>& relations) {
 	std::map<int, ScannerData> rotatedScanners;
 	const auto& firstScannerInTheList = scanners[0];
 	rotatedScanners.emplace(firstScannerInTheList.scannerId, firstScannerInTheList);
@@ -247,9 +242,12 @@ std::map<int, ScannerData> rotateScanners(const DataType& scanners, const std::v
 		const auto firstScannerCommonPoints = filterPoints(firstScanner.beacons, relation.firstScannerPoints);
 		const auto firstScannerConnections = createRelativeConnections(firstScannerCommonPoints);
 
-		const auto secondScannerVariants = getAllVariants(secondScanner);
-		for (const auto& secondScannerVariant : secondScannerVariants) {
-			if (areScannersMatching(relation, firstScannerConnections, secondScannerVariant)) {
+		auto secondScannerVariants = getAllVariants(secondScanner);
+		for (auto& secondScannerVariant : secondScannerVariants) {
+			const auto secondScannerCommonPoints = filterPoints(secondScannerVariant.beacons, relation.secondScannerPoints);
+			const auto secondScannerConnections = createRelativeConnections(secondScannerCommonPoints);
+			if (areScannersMatching(relation, firstScannerConnections, secondScannerConnections)) {
+				translateScanner(secondScannerVariant, firstScannerCommonPoints, secondScannerCommonPoints);
 				rotatedScanners.emplace(secondScannerVariant.scannerId, secondScannerVariant);
 			}
 		}
@@ -269,14 +267,8 @@ int partOne(const DataType& scanners) {
 	const auto& baseScanner = scanners[0];
 	scannersWithoutPair.erase(0);
 	const auto relations = findMatchingScanners(scanners, baseScanner, scannersWithoutPair, connectionsMap);
-
-	auto rotatedScanners = rotateScanners(scanners, relations);
-	for (const auto& relation : relations) {
-		const auto& baseScanner = rotatedScanners.find(relation.firstScannerId)->second;
-		auto& secondScanner = rotatedScanners.find(relation.secondScannerId)->second;
-		translateScanner(secondScanner, relation, baseScanner);
-	}
-
+	auto rotatedScanners = rotateAndTranslateScanners(scanners, relations);
+	
 	std::set<Vec3D> allBeacons;
 	for (const auto& [_, scanner] : rotatedScanners) {
 		allBeacons.insert(scanner.beacons.begin(), scanner.beacons.end());
