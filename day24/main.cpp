@@ -41,35 +41,32 @@ struct Instruction {
 	ValOrVar valOrVar;
 };
 
-using DataType = std::vector<Instruction>;
+struct Section {
+	int index;
+	std::vector<Instruction> instructions;
+};
+
+using DataType = std::vector<Section>;
 
 class Decoder {
 private:
-	const DataType& instructions;
+	const DataType& sections;
 	std::istringstream input;
 	std::map<char, int64_t> registry;
-	int maxTurns;
+	const int steps;
 
 public:
-	Decoder(const DataType& instructions, const std::string& input) : instructions(instructions), input(input), maxTurns(input.size()){}
+	Decoder(const DataType& sections, const std::string& input) :
+		sections(sections), input(input), steps(input.size()) {}
 
 	bool run() {
-		int64_t initialZ = -1;
-		int turns = -1;
-		int instructionIndex = 0;
-		for (const auto& [keyword, variable, valOrVar] : instructions) {
-			if (keyword == INP) {
-				++turns;
-				initialZ = registry['z'];
-			}
-			if (turns >= maxTurns) {
-				break;
-			}
+		for (int digitIdx = 0; digitIdx < steps; ++digitIdx) {
+			const auto& section = sections[digitIdx];
+			for (const auto& [keyword, variable, valOrVar] : section.instructions) {
+				auto& left = registry[variable];
+				auto right = valOrVar.isVal() ? valOrVar.val : registry[valOrVar.var];
 
-			auto& left = registry[variable];
-			auto right = valOrVar.isVal() ? valOrVar.val : registry[valOrVar.var];
-
-			switch (keyword) {
+				switch (keyword) {
 				case INP: {
 					char digit;
 					input >> digit;
@@ -90,15 +87,14 @@ public:
 					left %= right;
 				} break;
 				case EQL: left = (left == right); break;
+				}
+				
 			}
 
-			if (keyword == ADD && variable == 'z' && valOrVar.var == 'y') {
-				bool isPositive = positiveTurns[turns];
-				if (!isPositive && registry['x'] != 0) {
-					return false;
-				}
+			bool isPositive = positiveTurns[section.index];
+			if (!isPositive && registry['x'] != 0) {
+				return false;
 			}
-			++instructionIndex;
 		}
 
 		return true;
@@ -134,6 +130,8 @@ Keyword decodeKeyword(std::string str) {
 DataType read() {
 	common::FileReader reader("input.txt");
 	DataType data;
+	std::vector<Instruction> instructions;
+	int sectionIndex = 0;
 	for (std::string line; reader.nextLine(line);) {
 		if (line.empty()) {
 			continue;
@@ -149,40 +147,36 @@ DataType read() {
 		ss >> var;
 		instruction.variable = var;
 
-		if (instruction.keyword == INP) {
-			data.push_back(instruction);
-			continue;
+		if (instruction.keyword != INP) {
+			std::string last;
+			ss >> last;
+			if (last.size() == 1 && (last[0] < '0' || last[0] > '9')) {
+				instruction.valOrVar = ValOrVar{ 0, last[0] };
+			}
+			else {
+				instruction.valOrVar = ValOrVar{ std::stoi(last) };
+			}
 		}
-
-		std::string last;
-		ss >> last;
-		if (last.size() == 1 && (last[0] < '0' || last[0] > '9')) {
-			instruction.valOrVar = ValOrVar{ 0, last[0] };
+		if (instruction.keyword == INP && !instructions.empty()) {
+			data.push_back(Section{ sectionIndex++, instructions });
+			instructions.clear();
 		}
-		else {
-			instruction.valOrVar = ValOrVar{ std::stoi(last) };
-		}
-		data.push_back(instruction);
+		instructions.push_back(instruction);
 	}
+	data.push_back(Section{ sectionIndex++, instructions });
 	return data;
 }
 
 bool checkNumber(const DataType& data, const std::string& str) {
-	if (str == "8399799929") {
-		int x = 6;
-		x += 50;
-	}
-	if (str.size() == 14) {
-		Decoder decoder(data, str);
-		bool valid = decoder.run();
+	Decoder decoder(data, str);
+	bool valid = decoder.run();
+	if (str.size() == data.size()) {
 		if (valid && decoder.getVariable('z') == 0) {
 			std::cout << str << std::endl;
 			return true;
 		}
 	}
 	else {
-		Decoder decoder(data, str);
-		bool valid = decoder.run();
 		if (!valid) {
 			return false;
 		}
@@ -199,21 +193,15 @@ bool checkNumber(const DataType& data, const std::string& str) {
 }
 
 bool checkNumberSmall(const DataType& data, const std::string& str) {
-	if (str == "8399799929") {
-		int x = 6;
-		x += 50;
-	}
-	if (str.size() == 14) {
-		Decoder decoder(data, str);
-		bool valid = decoder.run();
+	Decoder decoder(data, str);
+	bool valid = decoder.run();
+	if (str.size() == data.size()) {
 		if (valid && decoder.getVariable('z') == 0) {
 			std::cout << str << std::endl;
 			return true;
 		}
 	}
 	else {
-		Decoder decoder(data, str);
-		bool valid = decoder.run();
 		if (!valid) {
 			return false;
 		}
