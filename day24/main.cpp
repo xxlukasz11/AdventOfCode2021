@@ -2,13 +2,9 @@
 #include <iostream>
 #include <cstdint>
 #include <string>
-#include <algorithm>
-#include <numeric>
-#include <utility>
 #include <sstream>
 #include <vector>
 #include <map>
-#include <set>
 
 enum Keyword {
 	INP,
@@ -47,63 +43,6 @@ struct Section {
 };
 
 using DataType = std::vector<Section>;
-
-class Decoder {
-private:
-	const DataType& sections;
-	std::istringstream input;
-	std::map<char, int64_t> registry;
-	const int steps;
-
-public:
-	Decoder(const DataType& sections, const std::string& input) :
-		sections(sections), input(input), steps(input.size()) {}
-
-	bool run() {
-		for (int digitIdx = 0; digitIdx < steps; ++digitIdx) {
-			const auto& section = sections[digitIdx];
-			for (const auto& [keyword, variable, valOrVar] : section.instructions) {
-				auto& left = registry[variable];
-				auto right = valOrVar.isVal() ? valOrVar.val : registry[valOrVar.var];
-
-				switch (keyword) {
-				case INP: {
-					char digit;
-					input >> digit;
-					left = digit - '0';
-				} break;
-				case ADD: left += right; break;
-				case MUL: left *= right; break;
-				case DIV: {
-					if (right == 0) {
-						return false;
-					}
-					left /= right;
-				} break;
-				case MOD: {
-					if (left < 0 || right < 0) {
-						return false;
-					}
-					left %= right;
-				} break;
-				case EQL: left = (left == right); break;
-				}
-				
-			}
-
-			bool isPositive = positiveTurns[section.index];
-			if (!isPositive && registry['x'] != 0) {
-				return false;
-			}
-		}
-
-		return true;
-	}
-
-	int64_t getVariable(char var) const {
-		return registry.find(var)->second;
-	}
-};
 
 Keyword decodeKeyword(std::string str) {
 	if (str == "inp") {
@@ -167,64 +106,116 @@ DataType read() {
 	return data;
 }
 
-bool checkNumber(const DataType& data, const std::string& str) {
+class Decoder {
+private:
+	const DataType& sections;
+	std::istringstream input;
+	std::map<char, int64_t> registry;
+	const int steps;
+
+public:
+	Decoder(const DataType& sections, const std::string& input) :
+		sections(sections), input(input), steps(input.size()) {
+	}
+
+	bool run() {
+		for (int digitIdx = 0; digitIdx < steps; ++digitIdx) {
+			const auto& section = sections[digitIdx];
+			for (const auto& [keyword, variable, valOrVar] : section.instructions) {
+				auto& left = registry[variable];
+				auto right = valOrVar.isVal() ? valOrVar.val : registry[valOrVar.var];
+
+				switch (keyword) {
+				case INP: {
+					char digit;
+					input >> digit;
+					left = digit - '0';
+				} break;
+				case ADD: left += right; break;
+				case MUL: left *= right; break;
+				case DIV: {
+					if (right == 0) {
+						return false;
+					}
+					left /= right;
+				} break;
+				case MOD: {
+					if (left < 0 || right < 0) {
+						return false;
+					}
+					left %= right;
+				} break;
+				case EQL: left = (left == right); break;
+				}
+
+			}
+
+			bool isPositive = positiveTurns[section.index];
+			if (!isPositive && registry['x'] != 0) {
+				return false;
+			}
+		}
+
+		return true;
+	}
+
+	int64_t getVariable(char var) const {
+		return registry.find(var)->second;
+	}
+};
+
+std::string checkNumber(const DataType& data, const std::string& str) {
 	Decoder decoder(data, str);
-	bool valid = decoder.run();
+	if (!decoder.run()) {
+		return "";
+	}
+
 	if (str.size() == data.size()) {
-		if (valid && decoder.getVariable('z') == 0) {
-			std::cout << str << std::endl;
-			return true;
+		if (decoder.getVariable('z') == 0) {
+			return str;
 		}
 	}
 	else {
-		if (!valid) {
-			return false;
-		}
-
 		for (char i = '9'; i >= '1'; --i) {
 			std::string newStr = str + i;
-			bool v = checkNumber(data, newStr);
-			if (v) {
-				return true;
+			const auto subStr = checkNumber(data, newStr);
+			if (!subStr.empty()) {
+				return subStr;
 			}
 		}
 	}
-	return false;
+	return "";
 }
 
-bool checkNumberSmall(const DataType& data, const std::string& str) {
+std::string checkNumberSmall(const DataType& data, const std::string& str) {
 	Decoder decoder(data, str);
-	bool valid = decoder.run();
+	if (!decoder.run()) {
+		return "";
+	}
+
 	if (str.size() == data.size()) {
-		if (valid && decoder.getVariable('z') == 0) {
-			std::cout << str << std::endl;
-			return true;
+		if (decoder.getVariable('z') == 0) {
+			return str;
 		}
 	}
 	else {
-		if (!valid) {
-			return false;
-		}
-
 		for (char i = '1'; i <= '9'; ++i) {
 			std::string newStr = str + i;
-			bool v = checkNumberSmall(data, newStr);
-			if (v) {
-				return true;
+			const auto subStr = checkNumberSmall(data, newStr);
+			if (!subStr.empty()) {
+				return subStr;
 			}
 		}
 	}
-	return false;
+	return "";
 }
 
-int64_t partOne(const DataType& data) {
-	checkNumber(data, "");
-	return 0;
+std::string partOne(const DataType& data) {
+	return checkNumber(data, "");
 }
 
-int64_t partTwo(const DataType& data) {
-	checkNumberSmall(data, "8");
-	return 0;
+std::string partTwo(const DataType& data) {
+	return checkNumberSmall(data, "8");
 }
 
 int main(int argc, char** argv) {
